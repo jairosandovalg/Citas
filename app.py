@@ -1,93 +1,84 @@
 import streamlit as st
 from datetime import datetime, timedelta
 
-# Configuración de la página web (Genera el HTML/HTTP básico)
-st.set_page_config(page_title="Reserva de Citas", page_icon="📅", layout="centered")
+# Configuración visual de la ventana web
+st.set_page_config(page_title="Taller - Reserva de Citas", page_icon="🚗", layout="centered")
 
-st.title("📅 Sistema de Reserva de Citas")
-st.write("Selecciona una fecha, una hora disponible y déjanos tus comentarios para agendar tu cita.")
+st.title("🚗 Agenda de Citas - Taller Mecánico")
+st.write("Selecciona el día y la hora para la atención de tu vehículo. Cada horario cuenta con un único cupo exclusivo.")
 
-# 1. SIMULACIÓN DE BASE DE DATOS (Se ejecuta en el servidor)
-# Inicializamos las horas y cupos disponibles si no existen en la sesión
-if "agenda" not in st.session_state:
-    # Vamos a crear citas disponibles para los próximos 3 días
+# 1. BASE DE DATOS TEMPORAL (Estructura interna con Cupo Único = 1)
+if "agenda_taller" not in st.session_state:
     hoy = datetime.now().date()
-    horas_permitidas = ["09:00 AM", "10:00 AM", "11:00 AM", "03:00 PM", "04:00 PM", "05:00 PM"]
+    # Bloques horarios del taller
+    horas_taller = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
     
+    # Habilitamos una matriz de disponibilidad para los próximos 4 días de trabajo
     base_datos = {}
-    for i in range(3):
+    for i in range(4):  
         fecha_str = str(hoy + timedelta(days=i))
-        base_datos[fecha_str] = {}
-        for hora in horas_permitidas:
-            # Inicializamos cada horario con 3 cupos disponibles
-            base_datos[fecha_str][hora] = 3 
+        # Inicializamos cada hora con exactamente 1 cupo disponible
+        base_datos[fecha_str] = {hora: 1 for hora in horas_taller}  
             
-    st.session_state.agenda = base_datos
+    st.session_state.agenda_taller = base_datos
 
-if "historial_reservas" not in st.session_state:
-    st.session_state.historial_reservas = []
+# Historial para almacenar internamente lo que van registrando los clientes
+if "registro_taller" not in st.session_state:
+    st.session_state.registro_taller = []
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ DEL FORMULARIO ---
 
-# 2. Selección de Fecha
-st.subheader("1. Elige la Fecha")
-fecha_seleccionada = st.date_input(
-    "Selecciona el día de tu cita:",
+st.subheader("📅 1. Fecha de Atención")
+fecha_sel = st.date_input(
+    "Elige el día:",
     min_value=datetime.now().date(),
-    max_value=datetime.now().date() + timedelta(days=2)
+    max_value=datetime.now().date() + timedelta(days=3)
 )
-fecha_key = str(fecha_seleccionada)
+fecha_key = str(fecha_sel)
 
-# 3. Selección de Hora según disponibilidad
-st.subheader("2. Elige la Hora")
+st.subheader("⏰ 2. Horarios Disponibles")
+horarios_dia = st.session_state.agenda_taller.get(fecha_key, {})
 
-# Obtenemos los horarios para la fecha seleccionada
-horarios_del_dia = st.session_state.agenda.get(fecha_key, {})
+# FILTRADO CRÍTICO: Creamos una lista solo con las horas cuyo cupo sea igual a 1
+horas_libres = [hora for hora, cupo in horarios_dia.items() if cupo == 1]
 
-# Filtrar solo las horas que aún tienen cupos (> 0)
-horas_disponibles = [hora for hora, cupos in horarios_del_dia.items() if cupos > 0]
-
-if horas_disponibles:
-    # Mostramos un selector con las horas y cuántos cupos quedan marcados al lado
-    opciones_selector = [f"{hora} ({horarios_del_dia[hora]} cupos restantes)" for hora in horas_disponibles]
-    seleccion_usuario = st.selectbox("Horarios disponibles:", opciones_selector)
-    
-    # Extraer la hora limpia elegida (quitando el texto de los cupos)
-    hora_elegida = seleccion_usuario.split(" (")[0]
+if horas_libres:
+    # Mostramos el componente selectbox pasando la lista limpia (sin textos de restantes)
+    hora_elegida = st.selectbox("Selecciona la hora de ingreso de tu carro:", horas_libres)
 else:
-    st.error("🔴 Lo sentimos, no quedan horarios disponibles para esta fecha. Por favor, elige otro día.")
+    st.error("🔴 Lo sentimos, todos los turnos para este día ya se encuentran ocupados por otros vehículos.")
     hora_elegida = None
 
-# 4. Campo de Observación
-st.subheader("3. Información Adicional")
+st.subheader("📝 3. Detalles del Vehículo / Observaciones")
 observacion = st.text_area(
-    "Escribe alguna observación o requerimiento especial:",
-    placeholder="Ej. Deseo que la reunión sea virtual / Tengo una consulta específica sobre..."
+    "Cuéntanos brevemente qué falla presenta o qué servicio requiere:",
+    placeholder="Ej: Cambio de pastillas de freno, mantenimiento de los 10k, ruido en el motor..."
 )
 
-# 5. Botón para confirmar y restar cupo
 st.markdown("---")
+
+# --- LÓGICA DE CONFIRMACIÓN ---
 if hora_elegida:
-    if st.button("Confirmar y Agendar Cita", type="primary"):
-        # Restar 1 cupo de la "base de datos" en memoria
-        st.session_state.agenda[fecha_key][hora_elegida] -= 1
+    if st.button("Confirmar Cupo Exclusivo", type="primary"):
+        # El cupo se bloquea inmediatamente pasando a 0 (Ocupado)
+        st.session_state.agenda_taller[fecha_key][hora_elegida] = 0
         
-        # Guardar el registro de la reserva
-        nueva_reserva = {
+        # Almacenamos el registro en la memoria del backend
+        st.session_state.registro_taller.append({
             "Fecha": fecha_key,
             "Hora": hora_elegida,
-            "Observación": observacion if observacion else "Ninguna"
-        }
-        st.session_state.historial_reservas.append(nueva_reserva)
+            "Detalles": observacion if observacion else "No especificado"
+        })
         
-        # Mensaje de éxito HTTP renderizado en pantalla
-        st.success(f"¡Cita confirmada con éxito para el **{fecha_key}** a las **{hora_elegida}**!")
-        st.balloons() # Animación gráfica de celebración
+        # Mensaje de éxito en la pantalla
+        st.success(f"¡Excelente! Turno reservado con éxito para el **{fecha_key}** a las **{hora_elegida}**. Te esperamos.")
+        st.balloons() # Animación de celebración
         
-        # Forzar recarga corta para actualizar los cupos visualmente al instante
+        # Forzamos a Streamlit a recargar la página inmediatamente.
+        # Al recargarse, el filtro leerá que esa hora ya vale 0 y no la dibujará en el menú.
         st.rerun()
 
-# --- VISTA DE ADMINISTRADOR / HISTORIAL (Opcional, abajo en la página) ---
-if st.session_state.historial_reservas:
-    with st.expander("📊 Ver Reservas Registradas (Historial del Servidor)"):
-        st.write(st.session_state.historial_reservas)
+# --- PANEL DE CONTROL INTERNO (Solo visible abajo para ver lo que se va llenando) ---
+if st.session_state.registro_taller:
+    with st.expander("📊 Ver órdenes registradas en el sistema (Historial del Servidor)"):
+        st.dataframe(st.session_state.registro_taller)
