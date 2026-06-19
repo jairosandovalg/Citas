@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Citas Taller Mecánico</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 480px;
+            width: 100%;
+            border-top: 5px solid #0d6efd;
+        }
+        h2 { 
+            color: #212529; 
+            margin-top: 0; 
+            text-align: center; 
+            font-size: 24px;
+        }
+        p { 
+            color: #6c757d; 
+            font-size: 14px; 
+            text-align: center; 
+            margin-bottom: 25px;
+        }
+        label { 
+            font-weight: 600; 
+            display: block; 
+            margin-top: 18px; 
+            margin-bottom: 6px; 
+            color: #495057; 
+        }
+        select, input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 15px;
+            background-color: #fff;
+        }
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .row {
+            display: flex;
+            gap: 15px;
+        }
+        .col {
+            flex: 1;
+        }
+        button {
+            width: 100%;
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            padding: 13px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 22px;
+            transition: background-color 0.2s;
+        }
+        button:hover { 
+            background-color: #0b5ed7; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🚗 Inspección Técnica - Registro</h2>
+    <p>Completa los datos del cliente y del vehículo para reservar el turno exclusivo.</p>
+    
+    <form id="formCita" action="/generar-audi" method="POST">
+        
+        <div class="row">
+            <div class="col">
+                <label for="nombre">Nombre:</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Juan">
+            </div>
+            <div class="col">
+                <label for="apellido">Apellido:</label>
+                <input type="text" id="apellido" name="apellido" required placeholder="Pérez">
+            </div>
+        </div>
+
+        <label for="correo">Correo Electrónico:</label>
+        <input type="email" id="correo" name="correo" placeholder="juan.perez@example.com">
+
+        <label for="telefono">Teléfono / Celular:</label>
+        <input type="tel" id="telefono" name="telefono" required placeholder="987654321">
+
+        <label for="orden">Número de Orden:</label>
+        <input type="text" id="orden" name="orden" required placeholder="Ej: 4520">
+
+        <label for="placa">Placa del Vehículo:</label>
+        <input type="text" id="placa" name="placa" required placeholder="Ej: ABC-123">
+
+        <label for="fecha">Fecha de Reparación:</label>
+        <input type="date" id="fecha" name="fecha" required>
+
+        <label for="hora">Horario de Ingreso Disponible:</label>
+        <select id="hora" name="hora" required>
+            </select>
+
+        <label for="observacion">Observaciones / Fallas Presentadas:</label>
+        <textarea id="observacion" name="observacion" rows="3" placeholder="Detalles mecánicos del vehículo..."></textarea>
+
+        <button type="submit">Guardar Registro y Generar PDF</button>
+    </form>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Bloquear fechas del pasado en el calendario
+        const hoyStr = new Date().toISOString().split('T')[0];
+        const inputFecha = document.getElementById('fecha');
+        if(inputFecha) {
+            inputFecha.min = hoyStr;
+            inputFecha.value = hoyStr;
+        }
+        // Ejecución inmediata de lectura de base de datos para el día de hoy
+        renderHorasReal();
+    });
+
+    function renderHorasReal() {
+        const fechaSeleccionada = document.getElementById('fecha').value;
+        const selectHora = document.getElementById('hora');
+        
+        if (!fechaSeleccionada || !selectHora) return;
+
+        // Fetch asíncrono al backend Flask para validar los cupos tomados en Supabase
+        fetch(`/obtener-horarios?fecha=${fechaSeleccionada}`)
+            .then(response => response.json())
+            .then(horasDisponibles => {
+                selectHora.innerHTML = ''; 
+
+                if (horasDisponibles.length > 0) {
+                    horasDisponibles.forEach(hora => {
+                        let opt = document.createElement('option');
+                        opt.value = hora;
+                        opt.textContent = hora; 
+                        selectHora.appendChild(opt);
+                    });
+                } else {
+                    let opt = document.createElement('option');
+                    opt.textContent = "🔴 Todo ocupado para esta fecha";
+                    opt.disabled = true;
+                    selectHora.appendChild(opt);
+                }
+            })
+            .catch(error => {
+                console.error("Error al consultar la API de horarios:", error);
+            });
+    }
+
+    // Escucha activa al cambio de fecha para recalcular el selector
+    document.getElementById('fecha').addEventListener('change', renderHorasReal);
+</script>
+
+</body>
+</html>
