@@ -1,84 +1,58 @@
-import streamlit as st
-from datetime import datetime, timedelta
+from flask import Flask, render_template, request, send_file, jsonify
+from datetime import datetime
+from weasyprint import HTML
+import os
+import tempfile
+import traceback
+from supabase import create_client, Client
 
-# Configuración visual de la ventana web
-st.set_page_config(page_title="Taller - Reserva de Citas", page_icon="🚗", layout="centered")
+app = Flask(__name__)
 
-st.title("🚗 Agenda de Citas - Taller Mecánico")
-st.write("Selecciona el día y la hora para la atención de tu vehículo. Cada horario cuenta con un único cupo exclusivo.")
+# Configuración de variables de entorno para Render
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "TU_SUPABASE_URL_AQUI")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "TU_SUPABASE_ANON_KEY_AQUI")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 1. BASE DE DATOS TEMPORAL (Estructura interna con Cupo Único = 1)
-if "agenda_taller" not in st.session_state:
-    hoy = datetime.now().date()
-    # Bloques horarios del taller
-    horas_taller = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
-    
-    # Habilitamos una matriz de disponibilidad para los próximos 4 días de trabajo
-    base_datos = {}
-    for i in range(4):  
-        fecha_str = str(hoy + timedelta(days=i))
-        # Inicializamos cada hora con exactamente 1 cupo disponible
-        base_datos[fecha_str] = {hora: 1 for hora in horas_taller}  
-            
-    st.session_state.agenda_taller = base_datos
+# Lista maestra global de bloques horarios del taller
+HORARIOS_MAESTROS = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
 
-# Historial para almacenar internamente lo que van registrando los clientes
-if "registro_taller" not in st.session_state:
-    st.session_state.registro_taller = []
+@app.route('/')
+def home():
+    fecha_hoy = datetime.now().strftime('%Y-%m-%d')
+    # Carga inicial por defecto con marca audi
+    return render_template('pdf_template.html', es_pdf=False, fecha=fecha_hoy, marca='audi')
 
-# --- INTERFAZ DEL FORMULARIO ---
+# --- RUTA DE DISPONIBILIDAD EN TIEMPO REAL ---
+@app.route('/obtener-horarios', methods=['GET'])
+def obtener_horarios():
+    fecha = request.args.get('fecha')
+    if not fecha:
+        return jsonify([])
 
-st.subheader("📅 1. Fecha de Atención")
-fecha_sel = st.date_input(
-    "Elige el día:",
-    min_value=datetime.now().date(),
-    max_value=datetime.now().date() + timedelta(days=3)
-)
-fecha_key = str(fecha_sel)
-
-st.subheader("⏰ 2. Horarios Disponibles")
-horarios_dia = st.session_state.agenda_taller.get(fecha_key, {})
-
-# FILTRADO CRÍTICO: Creamos una lista solo con las horas cuyo cupo sea igual a 1
-horas_libres = [hora for hora, cupo in horarios_dia.items() if cupo == 1]
-
-if horas_libres:
-    # Mostramos el componente selectbox pasando la lista limpia (sin textos de restantes)
-    hora_elegida = st.selectbox("Selecciona la hora de ingreso de tu carro:", horas_libres)
-else:
-    st.error("🔴 Lo sentimos, todos los turnos para este día ya se encuentran ocupados por otros vehículos.")
-    hora_elegida = None
-
-st.subheader("📝 3. Detalles del Vehículo / Observaciones")
-observacion = st.text_area(
-    "Cuéntanos brevemente qué falla presenta o qué servicio requiere:",
-    placeholder="Ej: Cambio de pastillas de freno, mantenimiento de los 10k, ruido en el motor..."
-)
-
-st.markdown("---")
-
-# --- LÓGICA DE CONFIRMACIÓN ---
-if hora_elegida:
-    if st.button("Confirmar Cupo Exclusivo", type="primary"):
-        # El cupo se bloquea inmediatamente pasando a 0 (Ocupado)
-        st.session_state.agenda_taller[fecha_key][hora_elegida] = 0
+    try:
+        # Consultamos en Supabase qué registros ya existen exactamente para esa fecha
+        respuesta = supabase.table("inspecciones").select("hora").eq("fecha", fecha).execute()
         
-        # Almacenamos el registro en la memoria del backend
-        st.session_state.registro_taller.append({
-            "Fecha": fecha_key,
-            "Hora": hora_elegida,
-            "Detalles": observacion if observacion else "No especificado"
-        })
+        # Almacenamos en una lista las horas que ya fueron tomadas
+        horas_ocupadas = [registro['hora'] for registro in respuesta.data]
         
-        # Mensaje de éxito en la pantalla
-        st.success(f"¡Excelente! Turno reservado con éxito para el **{fecha_key}** a las **{hora_elegida}**. Te esperamos.")
-        st.balloons() # Animación de celebración
+        # Filtramos la lista maestra dejando únicamente las horas Libres
+        horas_disponibles = [hora for hora in HORARIOS_MAESTROS if hora not in horas_ocupadas]
         
-        # Forzamos a Streamlit a recargar la página inmediatamente.
-        # Al recargarse, el filtro leerá que esa hora ya vale 0 y no la dibujará en el menú.
-        st.rerun()
+        return jsonify(horas_disponibles)
+    except Exception as e:
+        print(f"Error al consultar disponibilidad: {e}")
+        # Retorno de seguridad en caso de fallo de conexión externa
+        return jsonify(HORARIOS_MAESTROS)
 
-# --- PANEL DE CONTROL INTERNO (Solo visible abajo para ver lo que se va llenando) ---
-if st.session_state.registro_taller:
-    with st.expander("📊 Ver órdenes registradas en el sistema (Historial del Servidor)"):
-        st.dataframe(st.session_state.registro_taller)
+# --- PROCESADOR CENTRAL DE FORMULARIOS ---
+def procesar_inspeccion(sufijo_marca):
+    datos_html = request.form.to_dict()
+
+    if 'km' in datos_html and datos_html['km']:
+        try:
+            datos_html['km'] = int(datos_html['km'])
+        except ValueError:
+            datos_html['km'] = 0
+
+    # Renderizado dinámico de la plantilla in
