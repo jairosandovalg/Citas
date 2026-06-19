@@ -56,7 +56,6 @@
             border-color: #86b7fe;
             box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
         }
-        /* Estilos para alinear Nombre y Apellido en paralelo */
         .row {
             display: flex;
             gap: 15px;
@@ -80,138 +79,99 @@
         button:hover { 
             background-color: #0b5ed7; 
         }
-        .alert {
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 20px;
-            display: none;
-            text-align: center;
-            font-weight: 500;
-            background-color: #d1e7dd;
-            color: #0f5132;
-            border: 1px solid #badbcc;
-        }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>🚗 Reserva de Turno - Taller</h2>
-    <p>Selecciona tu horario de atención. Solo se permite el ingreso de un vehículo por turno.</p>
+    <h2>🚗 Inspección Técnica - Registro</h2>
+    <p>Completa los datos del cliente y del vehículo para reservar el turno exclusivo.</p>
     
-    <div class="row">
-        <div class="col">
-            <label for="nombre">Nombre:</label>
-            <input type="text" id="nombre" placeholder="Ej: Juan">
+    <form id="formCita" action="/generar-audi" method="POST">
+        
+        <div class="row">
+            <div class="col">
+                <label for="nombre">Nombre:</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Juan">
+            </div>
+            <div class="col">
+                <label for="apellido">Apellido:</label>
+                <input type="text" id="apellido" name="apellido" required placeholder="Pérez">
+            </div>
         </div>
-        <div class="col">
-            <label for="apellido">Apellido:</label>
-            <input type="text" id="apellido" placeholder="Ej: Pérez">
-        </div>
-    </div>
 
-    <label for="correo">Correo Electrónico:</label>
-    <input type="email" id="correo" placeholder="juan.perez@example.com">
+        <label for="correo">Correo Electrónico:</label>
+        <input type="email" id="correo" name="correo" placeholder="juan.perez@example.com">
 
-    <label for="telefono">Teléfono / Celular:</label>
-    <input type="tel" id="telefono" placeholder="Ej: 987654321">
+        <label for="telefono">Teléfono / Celular:</label>
+        <input type="tel" id="telefono" name="telefono" required placeholder="987654321">
 
-    <label for="fecha">Fecha de Reparación:</label>
-    <input type="date" id="fecha" onchange="renderHoras()">
+        <label for="orden">Número de Orden:</label>
+        <input type="text" id="orden" name="orden" required placeholder="Ej: 4520">
 
-    <label for="hora">Elige la Hora:</label>
-    <select id="hora">
-    </select>
+        <label for="placa">Placa del Vehículo:</label>
+        <input type="text" id="placa" name="placa" required placeholder="Ej: ABC-123">
 
-    <label for="observacion">¿Qué problema presenta el vehículo o qué servicio requiere?</label>
-    <textarea id="observacion" rows="3" placeholder="Ej: Cambio de pastillas de freno, mantenimiento de los 10k, ruido en el motor..."></textarea>
+        <label for="fecha">Fecha de Reparación:</label>
+        <input type="date" id="fecha" name="fecha" required>
 
-    <button onclick="registrarTurno()">Confirmar Cupo Exclusivo</button>
+        <label for="hora">Horario de Ingreso Disponible:</label>
+        <select id="hora" name="hora" required>
+            </select>
 
-    <div id="mensajeExito" class="alert"></div>
+        <label for="observacion">Observaciones / Fallas Presentadas:</label>
+        <textarea id="observacion" name="observacion" rows="3" placeholder="Detalles mecánicos del vehículo..."></textarea>
+
+        <button type="submit">Guardar Registro y Generar PDF</button>
+    </form>
 </div>
 
 <script>
-    // Configurar el calendario restringiendo para que la fecha mínima sea hoy
-    const hoyStr = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha').min = hoyStr;
-    document.getElementById('fecha').value = hoyStr;
-
-    // Estructura de datos: Cada horario inicia con 1 cupo disponible
-    let horariosTaller = {
-        "08:00 AM": 1,
-        "09:00 AM": 1,
-        "10:00 AM": 1,
-        "11:00 AM": 1,
-        "02:00 PM": 1,
-        "03:00 PM": 1,
-        "04:00 PM": 1,
-        "05:00 PM": 1
-    };
-
-    // Función encargada de dibujar las horas en el menú desplegable
-    function renderHoras() {
-        const select = document.getElementById('hora');
-        select.innerHTML = ''; // Limpiar opciones previas
-        let disponibilidad = false;
-
-        for (const [hora, cupo] of Object.entries(horariosTaller)) {
-            // REGLA CRÍTICA: Solo si el cupo es igual a 1, se construye la opción en el HTML
-            if (cupo === 1) {
-                let opt = document.createElement('option');
-                opt.value = hora;
-                opt.textContent = hora; // Muestra únicamente la hora limpia (Ej: 09:00 AM)
-                select.appendChild(opt);
-                disponibilidad = true;
-            }
+    document.addEventListener("DOMContentLoaded", function() {
+        // Bloquear fechas del pasado en el calendario
+        const hoyStr = new Date().toISOString().split('T')[0];
+        const inputFecha = document.getElementById('fecha');
+        if(inputFecha) {
+            inputFecha.min = hoyStr;
+            inputFecha.value = hoyStr;
         }
+        // Ejecución inmediata de lectura de base de datos para el día de hoy
+        renderHorasReal();
+    });
 
-        // Si todos los cupos del objeto están en 0
-        if (!disponibilidad) {
-            let opt = document.createElement('option');
-            opt.textContent = "🔴 Todo ocupado para esta fecha";
-            select.appendChild(opt);
-        }
-    }
-
-    // Función que se ejecuta al hacer clic en el botón de confirmación
-    function registrarTurno() {
-        const horaSel = document.getElementById('hora').value;
-        const nombreNode = document.getElementById('nombre');
-        const apellidoNode = document.getElementById('apellido');
-        const correoNode = document.getElementById('correo');
-        const telefonoNode = document.getElementById('telefono');
+    function renderHorasReal() {
+        const fechaSeleccionada = document.getElementById('fecha').value;
+        const selectHora = document.getElementById('hora');
         
-        // Validación básica de campos obligatorios antes de procesar
-        if (!nombreNode.value.trim() || !apellidoNode.value.trim() || !telefonoNode.value.trim()) {
-            alert("Por favor, completa tu Nombre, Apellido y Teléfono para agendar la cita.");
-            return;
-        }
+        if (!fechaSeleccionada || !selectHora) return;
 
-        // Validar que exista una hora seleccionada y que aún tenga su cupo libre
-        if (horaSel && horariosTaller[horaSel] === 1) {
-            // El cupo pasa inmediatamente a 0 (Ocupado)
-            horariosTaller[horaSel] = 0;
-            
-            // Mostrar la alerta de confirmación en la interfaz
-            const alerta = document.getElementById('mensajeExito');
-            alerta.textContent = `¡Listo ${nombreNode.value}! Tu vehículo ha sido agendado para las ${horaSel}.`;
-            alerta.style.display = 'block';
+        // Fetch asíncrono al backend Flask para validar los cupos tomados en Supabase
+        fetch(`/obtener-horarios?fecha=${fechaSeleccionada}`)
+            .then(response => response.json())
+            .then(horasDisponibles => {
+                selectHora.innerHTML = ''; 
 
-            // Volver a renderizar el menú (la hora seleccionada se eliminará de la lista)
-            renderHoras();
-            
-            // Limpiar las cajas de texto de datos personales y observaciones
-            nombreNode.value = '';
-            apellidoNode.value = '';
-            correoNode.value = '';
-            telefonoNode.value = '';
-            document.getElementById('observacion').value = '';
-        }
+                if (horasDisponibles.length > 0) {
+                    horasDisponibles.forEach(hora => {
+                        let opt = document.createElement('option');
+                        opt.value = hora;
+                        opt.textContent = hora; 
+                        selectHora.appendChild(opt);
+                    });
+                } else {
+                    let opt = document.createElement('option');
+                    opt.textContent = "🔴 Todo ocupado para esta fecha";
+                    opt.disabled = true;
+                    selectHora.appendChild(opt);
+                }
+            })
+            .catch(error => {
+                console.error("Error al consultar la API de horarios:", error);
+            });
     }
 
-    // Ejecución inicial al cargar la página por primera vez
-    renderHoras();
+    // Escucha activa al cambio de fecha para recalcular el selector
+    document.getElementById('fecha').addEventListener('change', renderHorasReal);
 </script>
 
 </body>
