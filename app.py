@@ -14,7 +14,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "TU_SUPABASE_ANON_KEY_AQUI")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Lista maestra global de bloques horarios del taller
-HORARIOS_MAESTROS = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
+HORARIOS_MAESTROS = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
 
 @app.route('/')
 def home():
