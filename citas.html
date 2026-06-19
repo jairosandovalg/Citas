@@ -3,139 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Citas HTML</title>
+    <title>Citas Taller Mecánico</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8f9fa;
             padding: 20px;
             display: flex;
-            flex-direction: column;
-            align-items: center;
+            justify-content: center;
         }
-        .container {
-            background-color: white;
+        .card {
+            background: white;
             padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            max-width: 450px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 480px;
             width: 100%;
+            border-top: 5px solid #0d6efd;
         }
-        h2 { color: #333; text-align: center; }
-        label { font-weight: bold; display: block; margin-top: 15px; margin-bottom: 5px; }
+        h2 { color: #212529; margin-top: 0; text-align: center; }
+        p { color: #6c757d; font-size: 14px; text-align: center; }
+        label { font-weight: 600; display: block; margin-top: 18px; margin-bottom: 6px; color: #495057; }
         select, input, textarea {
             width: 100%;
             padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
             box-sizing: border-box;
+            font-size: 15px;
         }
         button {
             width: 100%;
-            background-color: #ff4b4b;
+            background-color: #0d6efd;
             color: white;
             border: none;
-            padding: 12px;
+            padding: 13px;
             font-size: 16px;
             font-weight: bold;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            margin-top: 15px;
+            margin-top: 22px;
+            transition: 0.2s;
         }
-        button:hover { background-color: #e03e3e; }
-        .mensaje {
-            padding: 10px;
-            border-radius: 4px;
+        button:hover { background-color: #0b5ed7; }
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
             margin-top: 15px;
             display: none;
             text-align: center;
-            font-weight: bold;
+            font-weight: 500;
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
         }
-        .exito { background-color: #d4edda; color: #155724; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📅 Reserva de Citas (HTML)</h2>
+<div class="card">
+    <h2>🚗 Reserva de Turno - Taller</h2>
+    <p>Selecciona tu horario. Solo se permite un vehículo por hora en el taller mecánico.</p>
     
-    <label for="fecha">1. Elige la Fecha:</label>
-    <input type="date" id="fecha" onchange="actualizarHorarios()">
-
-    <label for="hora">2. Elige la Hora:</label>
-    <select id="hora">
-        </select>
-
-    <label for="observacion">3. Observación:</label>
-    <textarea id="observacion" rows="3" placeholder="Ej: Reunión virtual..."></textarea>
-
-    <button onclick="agendarCita()">Confirmar y Agendar Cita</button>
-
-    <div id="notificacion" class="mensaje exito"></div>
-</div>
-
-<script>
-    // Establecer la fecha mínima de hoy en el calendario
-    const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha').min = hoy;
-    document.getElementById('fecha').value = hoy;
-
-    // "Base de datos" temporal en JavaScript (Cupos por hora)
-    let cuposDisponibles = {
-        "09:00 AM": 3,
-        "10:00 AM": 3,
-        "11:00 AM": 3,
-        "03:00 PM": 3
-    };
-
-    // Función para renderizar las opciones del select reflejando los cupos que quedan
-    function actualizarHorarios() {
-        const selectHora = document.getElementById('hora');
-        selectHora.innerHTML = ''; // Limpiar opciones anteriores
-
-        let hayHoras = false;
-        for (const [hora, cupos] of Object.entries(cuposDisponibles)) {
-            if (cupos > 0) {
-                let opcion = document.createElement('option');
-                opcion.value = hora;
-                opcion.textContent = `${hora} (${cupos} cupos restantes)`;
-                selectHora.appendChild(opcion);
-                hayHoras = true;
-            }
-        }
-
-        if (!hayHoras) {
-            let opcion = document.createElement('option');
-            opcion.textContent = "🔴 No quedan cupos para hoy";
-            selectHora.appendChild(opcion);
-        }
-    }
-
-    // Función que se ejecuta al presionar el botón
-    function agendarCita() {
-        const horaSeleccionada = document.getElementById('hora').value;
-        
-        if (horaSeleccionada && cuposDisponibles[horaSeleccionada] > 0) {
-            // Restar 1 cupo
-            cuposDisponibles[horaSeleccionada]--;
-            
-            // Mostrar mensaje de éxito
-            const notificacion = document.getElementById('notificacion');
-            notificacion.textContent = `¡Cita agendada con éxito a las ${horaSeleccionada}!`;
-            notificacion.style.display = 'block';
-
-            // Actualizar visualmente la lista de horarios
-            actualizarHorarios();
-
-            // Limpiar la observación
-            document.getElementById('observacion').value = '';
-        }
-    }
-
-    // Iniciar los horarios al cargar la página por primera vez
-    actualizarHorarios();
-</script>
-
-</body>
-</html>
+    <label for="fecha">1. Fecha de Repar
