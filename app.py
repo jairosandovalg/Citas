@@ -19,8 +19,8 @@ HORARIOS_MAESTROS = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
 @app.route('/')
 def home():
     fecha_hoy = datetime.now().strftime('%Y-%m-%d')
-    # Carga inicial por defecto con marca audi
-    return render_template('pdf_template.html', es_pdf=False, fecha=fecha_hoy, marca='audi')
+    # Renderiza la web de forma limpia sin pasar marcas ficticias
+    return render_template('pdf_template.html', fecha=fecha_hoy)
 
 # --- RUTA DE DISPONIBILIDAD EN TIEMPO REAL ---
 @app.route('/obtener-horarios', methods=['GET'])
@@ -42,17 +42,64 @@ def obtener_horarios():
         return jsonify(horas_disponibles)
     except Exception as e:
         print(f"Error al consultar disponibilidad: {e}")
-        # Retorno de seguridad en caso de fallo de conexión externa
         return jsonify(HORARIOS_MAESTROS)
 
-# --- PROCESADOR CENTRAL DE FORMULARIOS ---
-def procesar_inspeccion(sufijo_marca):
-    datos_html = request.form.to_dict()
+# --- RUTA ÚNICA PARA PROCESAR Y AGENDAR LA CITA ---
+@app.route('/reservar-cita', methods=['POST'])
+def reservar_cita():
+    try:
+        # Capturamos todos los datos que el usuario llenó en el formulario HTML
+        datos_form = request.form.to_dict()
 
-    if 'km' in datos_html and datos_html['km']:
+        # 1. RENDERIZAR PLANTILLA PARA EL PDF
+        html = render_template(
+            'pdf_template.html',
+            es_pdf=True,
+            nombre=datos_form.get('nombre', ''),
+            apellido=datos_form.get('apellido', ''),
+            correo=datos_form.get('correo', ''),
+            telefono=datos_form.get('telefono', ''),
+            orden=datos_form.get('orden', ''),
+            placa=datos_form.get('placa', ''),
+            fecha=datos_form.get('fecha', ''),
+            hora=datos_form.get('hora', ''),
+            observacion=datos_form.get('observacion', '')
+        )
+
+        # 2. GENERAR ARCHIVO PDF TEMPORAL
+        pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        HTML(string=html, base_url=os.path.dirname(os.path.abspath(__file__))).write_pdf(pdf_file.name)
+
+        n_orden = datos_form.get('orden', 'SIN_ORDEN').strip()
+        placa = datos_form.get('placa', 'SIN_PLACA').strip()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nombre_archivo_pdf = f"{n_orden}_{placa}_{timestamp}.pdf"
+        
+        # 3. SUBIR PDF AL STORAGE DE SUPABASE
+        url_publica = None
         try:
-            datos_html['km'] = int(datos_html['km'])
-        except ValueError:
-            datos_html['km'] = 0
+            with open(pdf_file.name, 'rb') as archivo_pdf:
+                supabase.storage.from_('pdfs_formularios').upload(
+                    file=archivo_pdf,
+                    path=nombre_archivo_pdf,
+                    file_options={"content-type": "application/pdf"}
+                )
+            url_publica = supabase.storage.from_('pdfs_formularios').get_public_url(nombre_archivo_pdf)
+        except Exception as e:
+            print(f"Alerta Storage: No se pudo subir el archivo: {e}")
 
-    # Renderizado dinámico de la plantilla in
+        # Añadimos la URL del PDF a los datos que irán a la tabla
+        if url_publica:
+            datos_form['url_pdf'] = url_publica
+
+        # 4. GUARDAR EN LA BASE DE DATOS DE SUPABASE (Ya no requiere limpiar sufijos de marcas)
+        supabase.table("inspecciones").insert(datos_form).execute()
+
+        # 5. RETORNAR EL ARCHIVO PDF PARA DESCARGA AUTOMÁTICA DEL CLIENTE
+        return send_file(pdf_file.name, as_attachment=True, download_name=f"Cita_{n_orden}_{placa}.pdf")
+
+    except Exception as e:
+        return f"<h1>Error Interno al Procesar Cita:</h1><pre>{traceback.format_exc()}</pre>", 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
